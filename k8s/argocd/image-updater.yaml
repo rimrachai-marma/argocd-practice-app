@@ -1,0 +1,33 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: practice-app-image-updater
+  namespace: argocd
+spec:
+  applicationRefs:
+    # DEV: newest-build strategy — always update to the latest image tag
+    - namePattern: "practice-app-dev"
+      images:
+        - alias: app
+          imageName: rimra/argocd-practice-app
+          commonUpdateSettings:
+            updateStrategy: newest-build
+      writeBackConfig:
+        method: "git:secret:argocd/git-creds"
+        gitConfig:
+          repository: "https://github.com/rimrachai-marma/argocd-practice.git"
+          branch: "main"
+
+    # PROD: semver strategy — only proper releases like v1.2.0
+    - namePattern: "practice-app-prod"
+      images:
+        - alias: app
+          imageName: rimra/argocd-practice-app
+          commonUpdateSettings:
+            updateStrategy: semver
+            allowTags: "regexp:^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+      writeBackConfig:
+        method: "git:secret:argocd/git-creds"
+        gitConfig:
+          repository: "https://github.com/rimrachai-marma/argocd-practice.git"
+          branch: "main"

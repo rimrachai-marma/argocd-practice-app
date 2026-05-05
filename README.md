@@ -1,0 +1,179 @@
+# ArgoCD Practice Project
+
+A complete GitOps project using **ArgoCD + ArgoCD Image Updater + Kustomize**.
+
+## 📁 Project Structure
+
+```
+argocd-practice/
+├── app/                              # Application
+│   ├── index.js
+│   ├── package.json
+│   └── Dockerfile
+├── k8s/
+│   ├── base/                         # Shared base manifests
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   ├── configmap.yaml
+│   │   └── kustomization.yaml
+│   ├── overlays/
+│   │   ├── dev/                      # Dev: 1 replica, auto image updates
+│   │   │   └── kustomization.yaml
+│   │   └── prod/                     # Prod: 3 replicas, semver-only updates
+│   │       └── kustomization.yaml
+│   └── argocd/
+│       ├── application-dev.yaml      # ArgoCD App (auto-sync + Image Updater)
+│       ├── application-prod.yaml     # ArgoCD App (manual sync + semver)
+│       ├── git-creds-secret.yaml     # GitHub PAT for Image Updater write-back
+│       └── SETUP.sh                  # One-time cluster setup commands
+└── .github/workflows/
+    ├── ci.yaml                       # GitHub Actions: build & push only
+    └── release.yaml                  # GitHub Actions: release & tag
+```
+
+---
+
+## 🔄 How the Flow Works
+
+```
+You push app code
+      │
+      ▼
+GitHub Actions
+┌─────────────────────────────┐
+│ 1. Build Docker image       │
+│ 2. Push to Docker Hub       │  ← CI job ends here. Clean and simple.
+│    :latest + :<sha> (dev)   │
+│    :vX.Y.Z (prod)           │
+└─────────────────────────────┘
+      │
+      ▼ (Docker Hub has new image)
+ArgoCD Image Updater
+┌─────────────────────────────┐
+│ 3. Polls Docker Hub         │
+│ 4. Detects new image tag    │
+│    dev  → latest strategy   │
+│    prod → semver strategy   │
+│ 5. Commits updated tag      │  ← Writes back to Git automatically
+│    back to Git repo         │
+└─────────────────────────────┘
+      │
+      ▼ (Git repo has new manifest)
+ArgoCD
+┌─────────────────────────────┐
+│ 6. Detects Git change       │
+│ 7. Syncs to cluster         │  ← New pods deployed
+└─────────────────────────────┘
+```
+
+**Key insight:** CI only builds and pushes. It never touches Git manifests.
+Image Updater owns the manifest update step — Git is always the source of truth.
+
+---
+
+## 🚀 Setup Steps
+
+### Step 1 — Install ArgoCD
+
+```bash
+kubectl create namespace argocd
+kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Access the UI
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+# Get admin password
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+```
+
+### Step 2 — Install ArgoCD Image Updater
+
+```bash
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/config/install.yaml
+
+kubectl get pods -n argocd | grep image-updater
+```
+
+### Step 3 — Create GitHub PAT for write-back
+
+Image Updater needs to commit back to repo when it detects a new image.
+
+1. GitHub → **Settings → Developer settings → Personal access tokens**
+2. Create a token with **`repo`** scope
+3. Edit `k8s/argocd/git-creds-secret.yaml` and fill in username + token
+
+```bash
+kubectl apply -f k8s/argocd/git-creds-secret.yaml
+```
+
+### Step 4 — Build & push your first image
+
+```bash
+cd app
+docker build -t DOCKERHUB_USERNAME/argocd-practice-app:latest .
+docker push DOCKERHUB_USERNAME/argocd-practice-app:latest
+```
+
+### Step 5 — Apply ArgoCD Applications
+
+```bash
+kubectl apply -f k8s/argocd/application-dev.yaml
+kubectl apply -f k8s/argocd/application-prod.yaml
+kubectl apply -f k8s/argocd/image-updater.yaml
+```
+
+---
+
+## 🧪 Practice Scenarios
+
+### Scenario A — Full GitOps loop (dev)
+
+1. Edit `app/index.js` (change the message)
+2. Push to GitHub → GitHub Actions builds + pushes new image
+3. Wait ~2 minutes → Image Updater detects the new tag
+4. Image Updater commits `.argocd-source-practice-app-dev.yaml` to your repo
+5. ArgoCD detects the Git change → deploys automatically
+
+### Scenario B —
+
+1. GitHub repo → **Releases** → **Draft a new release**
+2. Create a new tag (e.g. `v1.0.0`) and publish the release
+3. GitHub Actions triggers → builds + pushes `argocd-practice-app:v1.0.0`
+4. Image Updater detects `v1.0.0` via semver strategy (ignores `:latest` and SHA tags)
+5. Image Updater commits updated tag to your repo
+6. Manually sync prod from the ArgoCD UI
+
+---
+
+## 🔑 Update Strategies Explained
+
+| Strategy | dev      | prod     | Behavior                                   |
+| -------- | -------- | -------- | ------------------------------------------ |
+| `latest` | ✅       | ❌       | Always use the most recently pushed tag    |
+| `semver` | ❌       | ✅       | Only update for valid semver tags (v1.2.0) |
+| `digest` | optional | optional | Track by image digest — most precise       |
+| `name`   | optional | optional | Alphabetically latest tag                  |
+
+---
+
+## 🔍 Useful Commands
+
+```bash
+# Check Image Updater logs
+kubectl logs -n argocd deployment/argocd-image-updater -f
+
+# Check ArgoCD app status
+kubectl get applications -n argocd
+
+# Check what Image Updater wrote back to Git
+# Look for this file in your repo after first update:
+cat k8s/overlays/dev/.argocd-source-practice-app-dev.yaml
+
+# Port-forward to test the app
+kubectl port-forward svc/practice-app-svc -n dev 4000:80
+curl http://localhost:4000
+
+# Check running pods
+kubectl get pods -n dev
+kubectl get pods -n prod
+```

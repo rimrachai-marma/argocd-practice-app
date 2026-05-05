@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - ../../base
+# Override replica count for dev (1 is enough)
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: practice-app-deployment
+# Override configmap values for dev
+configMapGenerator:
+  - name: practice-app-config
+    behavior: merge
+    literals:
+      - APP_ENV=development
