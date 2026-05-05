@@ -5,7 +5,7 @@ const ENV = process.env.APP_ENV || "local";
 
 app.get("/", (req, res) => {
   res.json({
-    message: "Hello, from ArgoCD Practice App! 😍..",
+    message: "Hello, from ArgoCD Practice App! 😍.....",
     environment: ENV,
     timestamp: new Date().toISOString(),
   });
