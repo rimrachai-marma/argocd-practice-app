@@ -1,3 +1,3 @@
 kustomize:
   images:
-  - rimra/argocd-practice-app:v1.2.0
+  - rimra/argocd-practice-app:v1.3.0
