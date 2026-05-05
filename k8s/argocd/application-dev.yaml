@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: practice-app-dev
   namespace: argocd
+
+  # This finalizer ensures that when the Application is deleted, Argo CD will clean up any resources it created in the cluster.
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
