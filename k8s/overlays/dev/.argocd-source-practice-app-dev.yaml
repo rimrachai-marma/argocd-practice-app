@@ -1,0 +1,3 @@
+kustomize:
+  images:
+  - rimra/argocd-practice-app:2a0321601ed5eb6b4e59240c5ec97730352cac4a
