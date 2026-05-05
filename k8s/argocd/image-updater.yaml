@@ -15,8 +15,8 @@ spec:
       writeBackConfig:
         method: "git:secret:argocd/git-creds"
         gitConfig:
-          repository: "https://github.com/rimrachai-marma/argocd-practice-app"
-          branch: "main"
+          repository: https://github.com/rimrachai-marma/argocd-practice-app
+          branch: main
 
     # PROD: semver strategy — only proper releases like v1.2.0
     - namePattern: "practice-app-prod"
@@ -29,5 +29,5 @@ spec:
       writeBackConfig:
         method: "git:secret:argocd/git-creds"
         gitConfig:
-          repository: "https://github.com/rimrachai-marma/argocd-practice-app"
-          branch: "main"
+          repository: https://github.com/rimrachai-marma/argocd-practice-app
+          branch: main
